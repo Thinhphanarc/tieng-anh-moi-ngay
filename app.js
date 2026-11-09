@@ -29,7 +29,7 @@ const ic = (n, s, w) => '<svg width="' + (s || 18) + '" height="' + (s || 18) + 
 /* ---------- STATE ---------- */
 const KEY = 'tamn-v1';
 const defaults = () => ({ v: 1, xp: 0, days: {}, streak: 0, lastDay: null, goal: 50, cards: {}, lessons: {}, qR: 0, qT: 0,
-  settings: { sfx: true, haptics: true, voice: 'en-US', rate: 0.95, theme: 'auto' } });
+  settings: { sfx: true, haptics: true, voice: 'en-US', rate: 0.95, theme: 'auto', free: false } });
 let S = defaults();
 try { const raw = localStorage.getItem(KEY); if (raw) { const o = JSON.parse(raw); S = Object.assign(defaults(), o); S.settings = Object.assign(defaults().settings, o.settings || {}); } } catch (e) {}
 const save = () => { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {} };
@@ -47,7 +47,7 @@ const STAGES = [
 ];
 const WORDS = {}; LESSONS.forEach((l) => l.words.forEach((w) => { const id = w[0].toLowerCase(); if (!WORDS[id]) WORDS[id] = { id, en: w[0], ipa: w[1], pos: w[2], vi: w[3], ex: w[4], exVi: w[5], lesson: l.id }; }));
 const LP = (id) => S.lessons[id] || (S.lessons[id] = { step: 0, passed: false, best: 0, skills: {} });
-const unlocked = (l) => l.idx === 0 || !!(LESSONS[l.idx - 1] && S.lessons[LESSONS[l.idx - 1].id] && S.lessons[LESSONS[l.idx - 1].id].passed);
+const unlocked = (l) => !!S.settings.free || l.idx === 0 || !!(LESSONS[l.idx - 1] && S.lessons[LESSONS[l.idx - 1].id] && S.lessons[LESSONS[l.idx - 1].id].passed);
 const currentLesson = () => LESSONS.find((l) => !(S.lessons[l.id] && S.lessons[l.id].passed)) || LESSONS[LESSONS.length - 1];
 const learnedWords = () => Object.keys(S.cards).map((k) => WORDS[k]).filter(Boolean);
 
@@ -268,7 +268,9 @@ SCREENS.home = () => {
 SCREENS.roadmap = (params) => {
   const learned = Object.keys(S.cards).length;
   const cur = currentLesson(); const view = (params && params.st) || (cur && cur.stage) || 1;
-  let html = '<div style="display:flex;align-items:flex-end;justify-content:space-between"><div style="display:flex;flex-direction:column;gap:6px"><span class="s13 mut">4 chặng · 3.400 từ</span><h1>Lộ trình</h1></div><div style="display:flex;flex-direction:column;align-items:flex-end"><span style="font-size:26px;font-weight:600;letter-spacing:-.8px">' + learned + '</span><span class="s12 mut">từ đã học</span></div></div>';
+  let html = '<div style="display:flex;align-items:flex-end;justify-content:space-between"><div style="display:flex;flex-direction:column;gap:6px"><span class="s13 mut">4 chặng · 3.400 từ</span><h1>Lộ trình</h1></div><div style="display:flex;flex-direction:column;align-items:flex-end"><span style="font-size:26px;font-weight:600;letter-spacing:-.8px">' + learned + '</span><span class="s12 mut">từ đã học</span></div></div>' +
+    '<div class="seg"><button class="' + (S.settings.free ? '' : 'on') + '" data-a="mode" data-v="0">' + ic('lock', 14) + 'Theo lộ trình</button><button class="' + (S.settings.free ? 'on' : '') + '" data-a="mode" data-v="1">' + ic('chev', 14) + 'Học tự do</button></div>' +
+    '<span class="s13 mut" style="margin-top:-8px">' + (S.settings.free ? 'Mở được mọi bài và mọi chặng. Bài gợi ý tiếp theo vẫn được đánh dấu “Đang học”.' : 'Học tuần tự: đạt 80% bài kiểm tra để mở bài tiếp theo.') + '</span>';
   STAGES.forEach((st) => {
     const ls = LESSONS.filter((l) => l.stage === st.n);
     const passed = ls.filter((l) => S.lessons[l.id] && S.lessons[l.id].passed).length;
@@ -282,14 +284,14 @@ SCREENS.roadmap = (params) => {
       ls.forEach((l) => {
         const p = S.lessons[l.id]; const done = p && p.passed; const un = unlocked(l); const isC = l === cur;
         if (l.unit !== unit) { unit = l.unit; html += '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:14px 0 4px"><span class="s12" style="color:var(--invMut)">Unit ' + l.unit + (l.unitTitle ? ' · ' + esc(l.unitTitle) : '') + '</span>' + (un ? '<button data-a="games" data-v="' + l.stage + '-' + l.unit + '" style="font-size:12px;font-weight:500;padding:4px 11px;border-radius:999px;border:1px solid var(--invLine);color:inherit;white-space:nowrap">Trò chơi</button>' : '') + '</div>'; }
-        html += '<button class="lrow" data-a="' + (un ? 'lesson' : 'locked') + '" data-v="' + l.id + '"><span class="st ' + (done ? 'done' : isC ? 'cur' : 'lock') + '">' + (done ? ic('check', 13, 2.2) : isC ? '' : ic('lock', 12, 2)) + '</span><span style="font-size:14px;flex:1;' + (isC ? 'font-weight:500' : '') + (un ? '' : 'color:var(--invMut)') + '">' + lnum(l) + ' · ' + esc(l.title) + '</span>' + (done ? '<span class="s12" style="color:var(--invMut)">' + (p.skipped && !p.best ? 'đã qua' : p.best + '%') + '</span>' : isC ? '<span class="s12" style="font-weight:500">Đang học</span>' : '') + '</button>';
+        html += '<button class="lrow" data-a="' + (un ? 'lesson' : 'locked') + '" data-v="' + l.id + '"><span class="st ' + (done ? 'done' : isC ? 'cur' : 'lock') + '">' + (done ? ic('check', 13, 2.2) : isC || un ? '' : ic('lock', 12, 2)) + '</span><span style="font-size:14px;flex:1;' + (isC ? 'font-weight:500' : '') + (un ? '' : 'color:var(--invMut)') + '">' + lnum(l) + ' · ' + esc(l.title) + '</span>' + (done ? '<span class="s12" style="color:var(--invMut)">' + (p.skipped && !p.best ? 'đã qua' : p.best + '%') + '</span>' : isC ? '<span class="s12" style="font-weight:500">Đang học</span>' : '') + '</button>';
       });
       html += '</div></div>';
     }
   });
   html += '<div class="card list">' + STAGES.filter((st) => st.n !== view).map((st) => { const ls = LESSONS.filter((l) => l.stage === st.n); const open = ls.length && unlocked(ls[0]); const done = ls.length && ls.every((l) => S.lessons[l.id] && S.lessons[l.id].passed);
     return '<' + (open ? 'button data-a="st" data-v="' + st.n + '"' : 'div') + ' class="stagecard" style="width:100%;text-align:left"><span class="num">' + st.roman + '</span><span class="t" style="display:flex;flex-direction:column;flex:1"><b style="font-size:15px;font-weight:500">' + st.name + '</b><span class="s13 mut">' + st.level + (st.words ? ' · ' + st.words.toLocaleString('vi-VN') + ' từ · ' + st.total + ' bài' : ' · ' + st.note) + (done ? ' · đã hoàn thành' : '') + '</span></span><span style="color:var(--mut)">' + (open ? ic(done ? 'check' : 'chev', 17) : ic('lock', 17)) + '</span></' + (open ? 'button' : 'div') + '>'; }).join('') + '</div>';
-  paint(html, { lesson: (id) => go('lesson', { id }), locked: () => toast('Hoàn thành bài trước để mở bài này'), st: (n) => go('roadmap', { st: +n }, true), games: (v) => { const [a, b] = v.split('-'); go('games', { st: +a, u: +b }); } }, 'roadmap');
+  paint(html, { lesson: (id) => go('lesson', { id }), locked: () => toast('Hoàn thành bài trước, hoặc chọn “Học tự do” để mở bài này'), st: (n) => go('roadmap', { st: +n }, true), mode: (v) => { S.settings.free = v === '1'; save(); toast(S.settings.free ? 'Đã mở mọi bài' : 'Đã về học theo lộ trình'); go('roadmap', params, true); }, games: (v) => { const [a, b] = v.split('-'); go('games', { st: +a, u: +b }); } }, 'roadmap');
 };
 
 const STEP_META = [
@@ -971,7 +973,7 @@ SCREENS.progress = () => {
     '<div style="display:flex;flex-direction:column;gap:8px"><span class="s13">Mục tiêu mỗi ngày</span>' + seg('goal', [[30, '30 XP'], [50, '50 XP'], [100, '100 XP'], [150, '150 XP']]) + '</div>' +
     '<div style="display:flex;flex-direction:column;gap:8px"><span class="s13">Giọng đọc</span>' + seg('voice', [['en-US', 'Anh – Mỹ'], ['en-GB', 'Anh – Anh']]) + '</div>' +
     '<div style="display:flex;flex-direction:column;gap:8px"><span class="s13">Tốc độ đọc</span>' + seg('rate', [[0.8, 'Chậm'], [0.95, 'Vừa'], [1.1, 'Nhanh']]) + '</div></div>' +
-    '<div class="card list">' + sw('sfx', 'Âm hiệu ứng', 'Ting khi đúng, tộc khi sai') + sw('haptics', 'Rung nhẹ', 'Chỉ trên Android') + '<button class="row" data-a="testv"><span class="t"><b>Nghe thử giọng đọc</b><span>' + (pickVoice() ? esc(pickVoice().name) : 'Chưa tìm thấy giọng tiếng Anh') + '</span></span>' + ic('spk', 18) + '</button></div>' +
+    '<div class="card list">' + sw('free', 'Học tự do', 'Mở mọi bài, không cần học tuần tự') + sw('sfx', 'Âm hiệu ứng', 'Ting khi đúng, tộc khi sai') + sw('haptics', 'Rung nhẹ', 'Chỉ trên Android') + '<button class="row" data-a="testv"><span class="t"><b>Nghe thử giọng đọc</b><span>' + (pickVoice() ? esc(pickVoice().name) : 'Chưa tìm thấy giọng tiếng Anh') + '</span></span>' + ic('spk', 18) + '</button></div>' +
     '<span class="s13 mut">Dữ liệu</span><div class="card list"><button class="row" data-a="exp"><span class="ric">' + ic('dl') + '</span><span class="t"><b>Xuất file sao lưu</b><span>Lưu tiến độ ra một file</span></span></button><label class="row" style="cursor:pointer"><span class="ric">' + ic('ul') + '</span><span class="t"><b>Nhập file sao lưu</b><span>Khôi phục tiến độ từ file</span></span><input type="file" id="imp" accept="application/json,.json" class="hidden"></label><button class="row" data-a="reset"><span class="ric">' + ic('replay') + '</span><span class="t"><b>Làm lại từ đầu</b><span>Xoá toàn bộ tiến độ trên máy này</span></span></button></div>' +
     '<p class="s12 mut center" style="padding:8px 0">Tiếng Anh Mỗi Ngày · Phiên bản 1.0 · Thinhphan</p>';
   paint(html, {
